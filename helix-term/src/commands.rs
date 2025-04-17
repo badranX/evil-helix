@@ -653,6 +653,8 @@ impl MappableCommand {
         evil_till_prev_char, "Move till previous occurrence of char (evil)",
         evil_find_prev_char, "Move to previous occurrence of char (evil)",
         evil_append_mode, "Append after character",
+        evil_cursor_forward_search, "Search forward for the word near cursor (evil)",
+        evil_cursor_backward_search, "Search backward for the word near cursor (evil)",
         command_palette, "Open command palette",
         goto_word, "Jump to a two-character label",
         extend_to_word, "Extend to a two-character label",
@@ -5836,6 +5838,30 @@ fn select_textobject_around(cx: &mut Context) {
 
 fn select_textobject_inner(cx: &mut Context) {
     select_textobject(cx, textobject::TextObject::Inside);
+}
+
+fn evil_cursor_forward_search(cx: &mut Context) {
+    select_inside_word(cx);
+    search_selection(cx);
+    search_next(cx);
+}
+
+fn evil_cursor_backward_search(cx: &mut Context) {
+    select_inside_word(cx);
+    search_selection(cx);
+    search_prev(cx);
+}
+
+fn select_inside_word(cx: &mut Context) {
+    let count = cx.count();
+    let (view, doc) = current!(cx.editor);
+    let text = doc.text().slice(..);
+
+    let objtype = textobject::TextObject::Inside;
+    let selection = doc.selection(view.id).clone().transform(|range| {
+        textobject::textobject_word(text, range, objtype, count, false)
+    });
+    doc.set_selection(view.id, selection);
 }
 
 fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
