@@ -5842,13 +5842,13 @@ fn select_textobject_inner(cx: &mut Context) {
 
 fn evil_cursor_forward_search(cx: &mut Context) {
     select_inside_word(cx);
-    search_selection(cx);
+    search_selection_detect_word_boundaries(cx);
     search_next(cx);
 }
 
 fn evil_cursor_backward_search(cx: &mut Context) {
     select_inside_word(cx);
-    search_selection(cx);
+    search_selection_detect_word_boundaries(cx);
     search_prev(cx);
 }
 
