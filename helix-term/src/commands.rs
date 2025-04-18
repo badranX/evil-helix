@@ -644,6 +644,8 @@ impl MappableCommand {
         evil_prev_long_word_start, "Previous long word start (evil)",
         evil_next_long_word_start, "Next long word start (evil)",
         evil_next_long_word_end, "Next long word end (evil)",
+        evil_goto_next_paragraph, "Goto next paragraph (evil)",
+        evil_goto_prev_paragraph, "Goto previous paragraph (evil)",
         evil_delete, "Delete (evil)",
         evil_delete_immediate, "Delete immediately (evil)",
         evil_yank, "Yank (evil)",
@@ -1423,6 +1425,20 @@ fn goto_prev_paragraph(cx: &mut Context) {
 
 fn goto_next_paragraph(cx: &mut Context) {
     goto_para_impl(cx, movement::move_next_paragraph)
+}
+
+fn evil_goto_next_paragraph(cx: &mut Context) {
+    goto_para_impl(cx, movement::move_next_paragraph);
+    if cx.editor.mode != Mode::Select {
+        EvilCommands::collapse_selections(cx, CollapseMode::ToHead);
+    }
+}
+
+fn evil_goto_prev_paragraph(cx: &mut Context) {
+    goto_para_impl(cx, movement::move_prev_paragraph);
+    if cx.editor.mode != Mode::Select {
+        EvilCommands::collapse_selections(cx, CollapseMode::ToHead);
+    }
 }
 
 fn goto_file_start(cx: &mut Context) {
