@@ -5841,18 +5841,24 @@ fn select_textobject_inner(cx: &mut Context) {
 }
 
 fn evil_cursor_forward_search(cx: &mut Context) {
-    select_inside_word(cx);
-    search_selection_detect_word_boundaries(cx);
-    search_next(cx);
+    if let Some(selection) = selection_inside_word(cx) {
+        let (view, doc) = current!(cx.editor);
+        doc.set_selection(view.id, selection);
+        search_selection_detect_word_boundaries(cx);
+        search_next(cx);
+    }
 }
 
 fn evil_cursor_backward_search(cx: &mut Context) {
-    select_inside_word(cx);
-    search_selection_detect_word_boundaries(cx);
-    search_prev(cx);
+    if let Some(selection) = selection_inside_word(cx) {
+        let (view, doc) = current!(cx.editor);
+        doc.set_selection(view.id, selection);
+        search_selection_detect_word_boundaries(cx);
+        search_prev(cx);
+    }
 }
 
-fn select_inside_word(cx: &mut Context) {
+fn selection_inside_word(cx: &mut Context) -> Option<Selection> {
     let count = cx.count();
     let (view, doc) = current!(cx.editor);
     let text = doc.text().slice(..);
@@ -5861,7 +5867,12 @@ fn select_inside_word(cx: &mut Context) {
     let selection = doc.selection(view.id).clone().transform(|range| {
         textobject::textobject_word(text, range, objtype, count, false)
     });
-    doc.set_selection(view.id, selection);
+
+    if selection.primary().fragment(text).trim().is_empty() {
+        cx.editor.set_status("No string under cursor");
+        return None;
+    }
+    Some(selection)
 }
 
 fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
