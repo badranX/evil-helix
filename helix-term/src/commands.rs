@@ -5841,24 +5841,14 @@ fn select_textobject_inner(cx: &mut Context) {
 }
 
 fn evil_cursor_forward_search(cx: &mut Context) {
-    if let Some(selection) = selection_inside_word(cx) {
-        let (view, doc) = current!(cx.editor);
-        doc.set_selection(view.id, selection);
-        search_selection_detect_word_boundaries(cx);
-        search_next(cx);
-    }
+    evil_cursor_search_impl(cx, Direction::Forward);
 }
 
 fn evil_cursor_backward_search(cx: &mut Context) {
-    if let Some(selection) = selection_inside_word(cx) {
-        let (view, doc) = current!(cx.editor);
-        doc.set_selection(view.id, selection);
-        search_selection_detect_word_boundaries(cx);
-        search_prev(cx);
-    }
+    evil_cursor_search_impl(cx, Direction::Backward);
 }
 
-fn selection_inside_word(cx: &mut Context) -> Option<Selection> {
+fn evil_cursor_search_impl (cx: &mut Context, direction: Direction) {
     let count = cx.count();
     let (view, doc) = current!(cx.editor);
     let text = doc.text().slice(..);
@@ -5868,11 +5858,39 @@ fn selection_inside_word(cx: &mut Context) -> Option<Selection> {
         textobject::textobject_word(text, range, objtype, count, false)
     });
 
-    if selection.primary().fragment(text).trim().is_empty() {
-        cx.editor.set_status("No string under cursor");
-        return None;
+    if selection.len() < 2 &&
+       selection.primary().fragment(text).trim().is_empty() {
+        cx.editor.set_error("No string under cursor");
+        return;
     }
-    Some(selection)
+
+    doc.set_selection(view.id, selection);
+    search_selection_detect_word_boundaries(cx);
+
+    //if smart case enabled, replace register with lower case
+    let config = cx.editor.config();
+    if config.search.smart_case {
+        let register = cx.register.unwrap_or('/');
+
+        let regex = match cx.editor.registers.first(register, cx.editor) {
+            Some(regex) => regex,
+            None => return,
+        }
+        .to_lowercase();
+
+        let msg = format!("register '{}' set to '{}'", register, &regex);
+        match cx.editor.registers.push(register, regex) {
+            Ok(_) => {
+                cx.editor.registers.last_search_register = register;
+                cx.editor.set_status(msg)
+            }
+            Err(err) => {
+                cx.editor.set_error(format!("Failed to update register: {}", err));
+                return;
+            }
+        }
+    }
+    search_next_or_prev_impl(cx, Movement::Move, direction);
 }
 
 fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
