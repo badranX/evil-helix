@@ -5849,8 +5849,31 @@ fn evil_cursor_backward_search(cx: &mut Context) {
 }
 
 fn evil_cursor_search_impl (cx: &mut Context, direction: Direction) {
+    fn goto_next_non_blank_in_line(view: &mut View, doc: &mut Document, movement: Movement) {
+        let text = doc.text().slice(..);
+
+        let selection = doc.selection(view.id).clone().transform(|range| {
+            let line = range.cursor_line(text);
+            let line_start = text.line_to_char(line);
+
+            let pos_end = graphemes::prev_grapheme_boundary(text, line_end_char_index(&text, line))
+                .max(line_start);
+
+            let anchor = range.cursor(text);
+
+            if let Some(pos) = text.slice(anchor..pos_end + 1).first_non_whitespace_char() {
+                range.put_cursor(text, anchor + pos, movement == Movement::Extend)
+            } else{
+                range.put_cursor(text, anchor, movement == Movement::Extend)
+            }
+        });
+        doc.set_selection(view.id, selection);
+    }
+
     let count = cx.count();
     let (view, doc) = current!(cx.editor);
+    goto_next_non_blank_in_line(view, doc, Movement::Move);
+
     let text = doc.text().slice(..);
 
     let objtype = textobject::TextObject::Inside;
