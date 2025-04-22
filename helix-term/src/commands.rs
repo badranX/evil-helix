@@ -5848,7 +5848,10 @@ fn evil_cursor_backward_search(cx: &mut Context) {
     evil_cursor_search_impl(cx, Direction::Backward);
 }
 
-fn evil_cursor_search_impl (cx: &mut Context, direction: Direction) {
+fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
+    fn find_keyword_char(slice: RopeSlice) -> Option<usize> {
+        slice.chars().position(|ch| ch.is_alphanumeric() || ch == '_')
+    }
     fn goto_next_non_blank_in_line(view: &mut View, doc: &mut Document, movement: Movement) {
         let text = doc.text().slice(..);
 
@@ -5861,9 +5864,9 @@ fn evil_cursor_search_impl (cx: &mut Context, direction: Direction) {
 
             let anchor = range.cursor(text);
 
-            if let Some(pos) = text.slice(anchor..pos_end + 1).first_non_whitespace_char() {
+            if let Some(pos) = find_keyword_char(text.slice(anchor..pos_end + 1)){
                 range.put_cursor(text, anchor + pos, movement == Movement::Extend)
-            } else{
+            } else {
                 range.put_cursor(text, anchor, movement == Movement::Extend)
             }
         });
@@ -5894,7 +5897,6 @@ fn evil_cursor_search_impl (cx: &mut Context, direction: Direction) {
     let config = cx.editor.config();
     if config.search.smart_case {
         let register = cx.register.unwrap_or('/');
-
         let regex = match cx.editor.registers.first(register, cx.editor) {
             Some(regex) => regex,
             None => return,
