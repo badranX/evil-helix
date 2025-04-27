@@ -537,8 +537,8 @@ pub fn default_evil() -> HashMap<Mode, KeyTrie> {
             "space" => add_newline_below,
         },
 
-        "}" => evil_goto_next_paragraph,
-        "{" => evil_goto_prev_paragraph,
+        "}" => evil_move_paragraph_forward,
+        "{" => evil_move_paragraph_backward,
 
         "/" => search,
         "?" => rsearch,
