@@ -5852,7 +5852,7 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
     fn find_keyword_char(slice: RopeSlice) -> Option<usize> {
         slice.chars().position(|ch| ch.is_alphanumeric() || ch == '_')
     }
-    fn goto_next_non_blank_in_line(view: &mut View, doc: &mut Document, movement: Movement) {
+    fn goto_next_keyword_char_in_line(view: &mut View, doc: &mut Document) {
         let text = doc.text().slice(..);
 
         let selection = doc.selection(view.id).clone().transform(|range| {
@@ -5865,9 +5865,9 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
             let anchor = range.cursor(text);
             let search_limit = (pos_end + 1).min(text.len_chars());
             if let Some(pos) = find_keyword_char(text.slice(anchor..search_limit)){
-                range.put_cursor(text, anchor + pos, movement == Movement::Extend)
+                range.put_cursor(text, anchor + pos, false)
             } else {
-                range.put_cursor(text, anchor, movement == Movement::Extend)
+                range.put_cursor(text, anchor, false)
             }
         });
         doc.set_selection(view.id, selection);
@@ -5875,7 +5875,7 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
 
     let count = cx.count();
     let (view, doc) = current!(cx.editor);
-    goto_next_non_blank_in_line(view, doc, Movement::Move);
+    goto_next_keyword_char_in_line(view, doc);
 
     let text = doc.text().slice(..);
 
@@ -5891,9 +5891,11 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
     }
 
     doc.set_selection(view.id, selection);
+
+    // Use Helix 'word' as a Vim 'keyword' equivalent
     search_selection_detect_word_boundaries(cx);
 
-    //if smart case enabled, replace register with lower case
+    // if smart case enabled, replace register with lower case
     let config = cx.editor.config();
     if config.search.smart_case {
         let register = cx.register.unwrap_or('/');
