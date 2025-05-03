@@ -5863,8 +5863,8 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
                 .max(line_start);
 
             let anchor = range.cursor(text);
-
-            if let Some(pos) = find_keyword_char(text.slice(anchor..pos_end + 1)){
+            let search_limit = (pos_end + 1).min(text.len_chars());
+            if let Some(pos) = find_keyword_char(text.slice(anchor..search_limit)){
                 range.put_cursor(text, anchor + pos, movement == Movement::Extend)
             } else {
                 range.put_cursor(text, anchor, movement == Movement::Extend)
