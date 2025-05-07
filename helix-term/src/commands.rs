@@ -5873,6 +5873,8 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
         doc.set_selection(view.id, selection);
     }
 
+    keep_primary_selection(cx);
+
     let count = cx.count();
     let (view, doc) = current!(cx.editor);
     goto_next_keyword_char_in_line(view, doc);
@@ -5884,8 +5886,7 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
         textobject::textobject_word(text, range, objtype, count, false)
     });
 
-    if selection.len() < 2 &&
-       selection.primary().fragment(text).trim().is_empty() {
+    if selection.primary().fragment(text).trim().is_empty() {
         cx.editor.set_error("No string under cursor");
         return;
     }
