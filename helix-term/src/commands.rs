@@ -5873,6 +5873,7 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
         doc.set_selection(view.id, selection);
     }
 
+    exit_select_mode(cx);
     keep_primary_selection(cx);
 
     let count = cx.count();
