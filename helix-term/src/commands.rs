@@ -5880,20 +5880,19 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
     goto_next_keyword_char_in_line(view, doc);
 
     let text = doc.text().slice(..);
-
-    let objtype = textobject::TextObject::Inside;
-    let selection = doc.selection(view.id).clone().transform(|range| {
-        textobject::textobject_word(text, range, objtype, count, false)
-    });
+    let selection = doc.selection(view.id);
 
     if selection.primary().fragment(text).trim().is_empty() {
         cx.editor.set_error("No string under cursor");
         return;
     }
 
-    doc.set_selection(view.id, selection);
-
     // Use Helix 'word' as a Vim 'keyword' equivalent
+    let objtype = textobject::TextObject::Inside;
+    let selection = selection.clone().transform(|range| {
+        textobject::textobject_word(text, range, objtype, count, false)
+    });
+    doc.set_selection(view.id, selection);
     search_selection_detect_word_boundaries(cx);
 
     // if smart case enabled, replace register with lower case
