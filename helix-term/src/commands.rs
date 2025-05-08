@@ -5896,26 +5896,22 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
     doc.set_selection(view.id, selection);
     search_selection_detect_word_boundaries(cx);
 
-    // if smart case enabled, replace register with lower case
-    let config = cx.editor.config();
-    if config.search.smart_case {
-        let register = cx.register.unwrap_or('/');
-        let regex = match cx.editor.registers.first(register, cx.editor) {
-            Some(regex) => regex,
-            None => return,
-        }
-        .to_lowercase();
+    // Vim */# search is case insensitive, thus prepending (?i) to regex
+    let register = cx.register.unwrap_or('/');
+    let regex = match cx.editor.registers.first(register, cx.editor) {
+        Some(regex) => format!("(?i){}", regex),
+        None => return,
+    };
 
-        let msg = format!("register '{}' set to '{}'", register, &regex);
-        match cx.editor.registers.push(register, regex) {
-            Ok(_) => {
-                cx.editor.registers.last_search_register = register;
-                cx.editor.set_status(msg)
-            }
-            Err(err) => {
-                cx.editor.set_error(format!("Failed to update register: {}", err));
-                return;
-            }
+    let msg = format!("register '{}' set to '{}'", register, &regex);
+    match cx.editor.registers.push(register, regex) {
+        Ok(_) => {
+            cx.editor.registers.last_search_register = register;
+            cx.editor.set_status(msg)
+        }
+        Err(err) => {
+            cx.editor.set_error(format!("Failed to update register: {}", err));
+            return;
         }
     }
     search_next_or_prev_impl(cx, Movement::Move, direction);
