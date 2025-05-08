@@ -5900,7 +5900,6 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
     doc.set_selection(view.id, selection);
     search_selection_detect_word_boundaries(cx);
 
-    let config = cx.editor.config();
     let register = cx.register.unwrap_or('/');
 
     let regex = match cx.editor.registers.first(register, cx.editor) {
@@ -5913,12 +5912,8 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
                 .collect::<Vec<_>>()
                 .join("|");
 
-            // if smart case enabled, we will replace register with lower case
-            if config.search.smart_case {
-                clean_regex.to_lowercase()
-            } else {
-                clean_regex
-            }
+            // Vim */# search is always case insensitive, thus adding (?i) to regex
+            format!("(?i){}", clean_regex)
         }
         None => return,
     };
