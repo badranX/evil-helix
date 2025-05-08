@@ -5864,7 +5864,7 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
 
             let anchor = range.cursor(text);
             let search_limit = (pos_end + 1).min(text.len_chars());
-            if let Some(pos) = find_keyword_char(text.slice(anchor..search_limit)){
+            if let Some(pos) = find_keyword_char(text.slice(anchor..search_limit)) {
                 range.put_cursor(text, anchor + pos, false)
             } else {
                 range.put_cursor(text, anchor, false)
@@ -5874,7 +5874,6 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
     }
 
     exit_select_mode(cx);
-    keep_primary_selection(cx);
 
     let count = cx.count();
     let (view, doc) = current!(cx.editor);
@@ -5883,39 +5882,56 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
     let text = doc.text().slice(..);
     let selection = doc.selection(view.id);
 
-    if selection.primary().fragment(text).trim().is_empty() {
-        cx.editor.set_error("No string under cursor");
+    let any_non_empty = selection
+        .fragments(text.slice(..))
+        .map(|sel| sel.to_string().trim().to_owned())
+        .any(|s| !s.is_empty());
+
+    if !any_non_empty {
+        cx.editor.set_error("No string under cursor/cursors");
         return;
     }
 
     // Use Helix 'word' as a Vim 'keyword' equivalent
     let objtype = textobject::TextObject::Inside;
-    let selection = selection.clone().transform(|range| {
-        textobject::textobject_word(text, range, objtype, count, false)
-    });
+    let selection = selection
+        .clone()
+        .transform(|range| textobject::textobject_word(text, range, objtype, count, false));
     doc.set_selection(view.id, selection);
     search_selection_detect_word_boundaries(cx);
 
-    // if smart case enabled, replace register with lower case
     let config = cx.editor.config();
-    if config.search.smart_case {
-        let register = cx.register.unwrap_or('/');
-        let regex = match cx.editor.registers.first(register, cx.editor) {
-            Some(regex) => regex,
-            None => return,
-        }
-        .to_lowercase();
+    let register = cx.register.unwrap_or('/');
 
-        let msg = format!("register '{}' set to '{}'", register, &regex);
-        match cx.editor.registers.push(register, regex) {
-            Ok(_) => {
-                cx.editor.registers.last_search_register = register;
-                cx.editor.set_status(msg)
+    let regex = match cx.editor.registers.first(register, cx.editor) {
+        Some(regex) => {
+            // remove empty selections
+            let clean_regex = regex
+                .split('|')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join("|");
+
+            // if smart case enabled, we will replace register with lower case
+            if config.search.smart_case {
+                clean_regex.to_lowercase()
+            } else {
+                clean_regex
             }
-            Err(err) => {
-                cx.editor.set_error(format!("Failed to update register: {}", err));
-                return;
-            }
+        }
+        None => return,
+    };
+
+    let msg = format!("register '{}' set to '{}'", register, &regex);
+    match cx.editor.registers.push(register, regex) {
+        Ok(_) => {
+            cx.editor.registers.last_search_register = register;
+            cx.editor.set_status(msg)
+        }
+        Err(err) => {
+            cx.editor.set_error(format!("Failed to update register: {}", err));
+            return;
         }
     }
     search_next_or_prev_impl(cx, Movement::Move, direction);
