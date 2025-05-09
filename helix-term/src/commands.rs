@@ -5929,6 +5929,10 @@ fn evil_cursor_search_impl(cx: &mut Context, direction: Direction) {
             return;
         }
     }
+
+    //remove multi cursors before searching to avoid strange multi-cursor jumps
+    keep_primary_selection(cx);
+
     search_next_or_prev_impl(cx, Movement::Move, direction);
 }
 
