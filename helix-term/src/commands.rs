@@ -316,6 +316,10 @@ impl MappableCommand {
         if evil_is_select_mode_linewise(cx) {
             evil_transform_selection_linewise(cx)
         }
+
+        if EvilCommands::is_enabled() {
+            evil_avoid_last_line(cx);
+        }
     }
 
     pub fn name(&self) -> &str {
@@ -6793,6 +6797,28 @@ fn evil_next_long_word_start(cx: &mut Context) {
 fn evil_next_long_word_end(cx: &mut Context) {
     // TODO: evil-specific implementation in evil.rs
     evil_move_word_impl(cx, movement::move_next_long_word_end);
+}
+
+fn evil_avoid_last_line(cx: &mut Context) {
+    let (view, doc) = current!(cx.editor);
+    let text = doc.text().slice(..);
+
+    let line_idx = doc.selection(view.id).primary().cursor_line(text);
+    let last_line_idx = text.len_lines() - 1;
+
+    let is_on_empty_last_line = line_idx == last_line_idx
+        && text.line(last_line_idx).len_chars() == 0;
+
+    if is_on_empty_last_line {
+        let (view, doc) = current!(cx.editor);
+        let selection = doc.selection(view.id);
+
+        if selection.len() > 1 {
+            remove_primary_selection(cx);
+        } else {
+            move_visual_line_up(cx);
+        }
+    }
 }
 
 fn evil_delete(cx: &mut Context) {
