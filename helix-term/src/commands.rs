@@ -255,8 +255,27 @@ macro_rules! static_commands {
     }
 }
 
+fn evil_save_to_jumplist(cx: &mut Context){
+        let (view, doc) = current!(cx.editor);
+        push_jump(view, doc);
+}
+
+fn evil_pre_commands_hook(cx: &mut Context, cmd: &MappableCommand)
+{
+    if let MappableCommand::Static { name, .. } = cmd {
+        match *name {
+            n if n.contains("search") || n == "match_brackets" => {
+                evil_save_to_jumplist(cx);
+            }
+            _ => {}
+        }
+    }
+}
+
 impl MappableCommand {
     pub fn execute(&self, cx: &mut Context) {
+        evil_pre_commands_hook(cx, self);
+
         if evil_is_select_mode_linewise(cx) {
             // NOTE LineWise Select
             // ======================
