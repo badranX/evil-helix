@@ -1448,6 +1448,7 @@ fn goto_next_paragraph(cx: &mut Context) {
 }
 
 fn evil_move_paragraph_forward(cx: &mut Context) {
+    evil_save_to_jumplist(cx);
     goto_para_impl(cx, evil_movement_paragraph_forward);
     if cx.editor.mode != Mode::Select {
         EvilCommands::collapse_selections(cx, CollapseMode::ToHead);
@@ -1455,6 +1456,7 @@ fn evil_move_paragraph_forward(cx: &mut Context) {
 }
 
 fn evil_move_paragraph_backward(cx: &mut Context) {
+    evil_save_to_jumplist(cx);
     goto_para_impl(cx, evil_movement_paragraph_backward);
     if cx.editor.mode != Mode::Select {
         EvilCommands::collapse_selections(cx, CollapseMode::ToHead);
