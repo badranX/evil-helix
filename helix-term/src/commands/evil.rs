@@ -21,9 +21,18 @@ use helix_view::editor::EvilSelectMode;
 use helix_view::input::KeyEvent;
 use once_cell::sync::Lazy;
 
-use crate::commands::{enter_insert_mode, exit_select_mode, Context, Extend, Operation};
+use crate::commands::{
+    enter_insert_mode, exit_select_mode, insert_mode, select_mode, Context, Extend, Operation,
+};
 
 use super::OnKeyCallbackKind;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum EvilOperator {
+    Yank,
+    Delete,
+    Change,
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Command {
@@ -104,6 +113,10 @@ pub enum CollapseMode {
 
 struct EvilContext {
     command: Option<Command>,
+    operator: Option<EvilOperator>,
+    operator_count: usize,
+    operator_register: Option<char>,
+    operator_will_exit: bool,
     motion: Option<Motion>,
     count: Option<usize>,
     modifiers: Vec<Modifier>,
@@ -113,6 +126,10 @@ struct EvilContext {
 impl EvilContext {
     pub fn reset(&mut self) {
         self.command = None;
+        self.operator = None;
+        self.operator_count = 0;
+        self.operator_register = None;
+        self.operator_will_exit = false;
         self.motion = None;
         self.count = None;
         self.modifiers.clear();
@@ -123,6 +140,10 @@ impl EvilContext {
 static CONTEXT: Lazy<RwLock<EvilContext>> = Lazy::new(|| {
     RwLock::new(EvilContext {
         command: None,
+        operator: None,
+        operator_count: 0,
+        operator_register: None,
+        operator_will_exit: false,
         motion: None,
         count: None,
         modifiers: Vec::new(),
@@ -142,6 +163,34 @@ impl EvilCommands {
 
     pub fn is_enabled() -> bool {
         true
+    }
+
+    pub fn operator() -> Option<EvilOperator> {
+        Self::context().operator
+    }
+
+    pub fn operator_count() -> usize {
+        Self::context().operator_count
+    }
+
+    pub fn operator_register() -> Option<char> {
+        Self::context().operator_register
+    }
+
+    pub fn operator_will_exit() -> bool {
+        Self::context().operator_will_exit
+    }
+
+    pub fn set_operator(
+        cmd: Option<EvilOperator>,
+        register: Option<char>,
+        count: usize,
+        will_exit: bool,
+    ) {
+        Self::context_mut().operator = cmd;
+        Self::context_mut().operator_register = register;
+        Self::context_mut().operator_count = count;
+        Self::context_mut().operator_will_exit = will_exit;
     }
 
     /// Collapse selections such that the selections cover one character per cursor only.
@@ -732,6 +781,8 @@ impl EvilCommands {
                     Mode::Normal => Self::collapse_selections(cx, CollapseMode::ToHead),
                     _ => {}
                 }
+
+                EvilOps::exec_operator(cx);
             })
         } else {
             log::warn!("The find_char base function did not set a key callback");
@@ -861,4 +912,141 @@ pub fn evil_movement_paragraph_forward(
         range.put_cursor(slice, head, true).anchor
     };
     Range::new(anchor, head)
+}
+
+pub struct EvilOps;
+
+impl EvilOps {
+    pub fn is_pending_operator(cx: &Context) -> bool {
+        cx.editor.mode == Mode::Select && EvilCommands::operator().is_some()
+    }
+
+    pub fn stop_any_pending() {
+        EvilCommands::set_operator(None, None, 0, false);
+    }
+
+    pub fn will_stop_pending_and_exit_selection() {
+        if EvilCommands::operator().is_some() {
+            EvilCommands::set_operator(None, None, 0, true);
+        }
+    }
+
+    fn exit_selection(cx: &mut Context, collapse_mode: CollapseMode) {
+
+        EvilCommands::collapse_selections(cx, collapse_mode);
+
+        if cx.editor.mode == Mode::Select {
+            cx.editor.mode = Mode::Normal;
+        }
+    }
+
+    pub fn stop_pending_and_exit_selection(cx: &mut Context) {
+        if !EvilCommands::is_enabled() {
+            return;
+        }
+        // Use ToAnchor produces a closer cursor position to Vim
+        Self::exit_selection(cx, CollapseMode::ToAnchor);
+        EvilCommands::set_operator(None, None, 0, false);
+    }
+
+    fn delete_by_selection(cx: &mut Context, selection: &Selection) {
+        let (view, doc) = current!(cx.editor);
+        let transaction = Transaction::delete_by_selection(doc.text(), selection, |range| {
+            let pos = range.from();
+            let end = (range.to()).max(pos);
+            (pos, end)
+        });
+        doc.apply(&transaction, view.id);
+    }
+
+    pub fn exec_operator(cx: &mut Context) {
+        fn custom_delete_selection(cx: &mut Context, insert: bool) {
+            let selection = {
+                let (view, doc) = current!(cx.editor);
+                doc.selection(view.id).clone()
+            };
+
+            EvilCommands::collapse_selections(cx, CollapseMode::ToAnchor);
+            cx.register = EvilCommands::operator_register();
+            EvilCommands::yank_selection(cx, &selection, true);
+            EvilOps::delete_by_selection(cx, &selection);
+            if insert {
+                insert_mode(cx);
+            }
+        }
+
+        if !EvilCommands::is_enabled() {
+            return;
+        }
+
+        // Assumption: operator is not pending except in Mode::Select
+        if cx.editor.mode == Mode::Select {
+            if EvilCommands::operator_will_exit() {
+                Self::stop_pending_and_exit_selection(cx);
+                return;
+            }
+            if let Some(operator) = EvilCommands::operator() {
+                match operator {
+                    EvilOperator::Delete => custom_delete_selection(cx, false),
+                    EvilOperator::Change => custom_delete_selection(cx, true),
+                    EvilOperator::Yank => {
+                        let selection = {
+                            let (view, doc) = current!(cx.editor);
+                            doc.selection(view.id).clone()
+                        };
+
+                        // yank to operator register
+                        cx.register = EvilCommands::operator_register();
+                        EvilCommands::yank_selection(cx, &selection, true);
+                    }
+                }
+                Self::stop_pending_and_exit_selection(cx);
+            }
+        }
+    }
+
+    pub fn operator_impl(cx: &mut Context, cmd: EvilOperator) {
+        fn custom_delete_line(cx: &mut Context, count: usize, change: bool) {
+            // Adjusting the original evil context count to use `get_full_line_based_selection`
+            EvilCommands::context_mut().count = Some(count);
+            let selection = EvilCommands::get_full_line_based_selection(cx, !change);
+
+            cx.register = EvilCommands::operator_register();
+            EvilCommands::yank_selection(cx, &selection, true);
+            EvilOps::delete_by_selection(cx, &selection);
+            if change {
+                insert_mode(cx);
+            }
+        }
+
+        let count = EvilCommands::operator_count();
+
+        if !Self::is_pending_operator(cx) {
+            if cx.editor.mode == Mode::Select {
+                match cmd {
+                    EvilOperator::Delete => EvilCommands::delete(cx, Operation::Delete),
+                    EvilOperator::Change => EvilCommands::delete(cx, Operation::Change),
+                    EvilOperator::Yank => EvilCommands::yank(cx),
+                }
+            } else {
+                EvilCommands::set_operator(Some(cmd), cx.register, cx.count(), false);
+                select_mode(cx);
+            }
+        } else {
+            match cmd {
+                EvilOperator::Delete => custom_delete_line(cx, count, false),
+                EvilOperator::Change => custom_delete_line(cx, count, true),
+                EvilOperator::Yank => {
+                    // Adjusting the original evil context count to use `get_full_line_based_selection`
+                    EvilCommands::context_mut().count = Some(count);
+                    let selection = EvilCommands::get_full_line_based_selection(cx, true);
+
+                    // Yank to operator register
+                    cx.register = EvilCommands::operator_register();
+                    EvilCommands::yank_selection(cx, &selection, true);
+                }
+            }
+            Self::stop_pending_and_exit_selection(cx);
+        }
+    }
 }

@@ -255,6 +255,27 @@ macro_rules! static_commands {
     }
 }
 
+fn evil_post_command_execution(cx: &mut Context, cmd: &MappableCommand) {
+    if EvilOps::is_pending_operator(cx) {
+        match cmd.name() {
+            "select_textobject_around"
+            | "select_textobject_inner"
+            | "evil_find_till_char"
+            | "evil_find_next_char"
+            | "evil_till_prev_char"
+            | "evil_prev_char"
+            | "evil_delete"
+            | "evil_change"
+            | "evil_yank" => {
+                // Ignore
+            }
+            _ => {
+                EvilOps::exec_operator(cx);
+            }
+        }
+    }
+}
+
 impl MappableCommand {
     pub fn execute(&self, cx: &mut Context) {
         if evil_is_select_mode_linewise(cx) {
@@ -316,6 +337,7 @@ impl MappableCommand {
         if evil_is_select_mode_linewise(cx) {
             evil_transform_selection_linewise(cx)
         }
+        evil_post_command_execution(cx, self);
     }
 
     pub fn name(&self) -> &str {
@@ -3823,6 +3845,7 @@ fn open_above(cx: &mut Context) {
 }
 
 fn normal_mode(cx: &mut Context) {
+    EvilOps::stop_any_pending();
     cx.editor.enter_normal_mode();
 }
 
@@ -3943,6 +3966,7 @@ pub fn exit_select_mode(cx: &mut Context) {
     if EvilCommands::is_enabled() {
         // In evil mode, selections are possible in the selection/visual mode only.
         EvilCommands::collapse_selections(cx, CollapseMode::ToHead);
+        EvilOps::stop_any_pending();
     }
 
     if cx.editor.mode == Mode::Select {
@@ -5930,12 +5954,19 @@ fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
                             ch,
                             count,
                         ),
-                        _ => range,
+                        _ => {
+                            EvilOps::will_stop_pending_and_exit_selection();
+                            range
+                        }
                     }
                 });
                 doc.set_selection(view.id, selection);
             };
             cx.editor.apply_motion(textobject);
+
+            EvilOps::exec_operator(cx);
+        } else {
+            EvilOps::stop_pending_and_exit_selection(cx);
         }
     });
 
@@ -6813,7 +6844,7 @@ fn evil_next_long_word_end(cx: &mut Context) {
 }
 
 fn evil_delete(cx: &mut Context) {
-    EvilCommands::delete(cx, Operation::Delete);
+    EvilOps::operator_impl(cx, EvilOperator::Delete);
 }
 
 fn evil_delete_immediate(cx: &mut Context) {
@@ -6824,11 +6855,11 @@ fn evil_delete_immediate(cx: &mut Context) {
 }
 
 fn evil_yank(cx: &mut Context) {
-    EvilCommands::yank(cx);
+    EvilOps::operator_impl(cx, EvilOperator::Yank);
 }
 
 fn evil_change(cx: &mut Context) {
-    EvilCommands::delete(cx, Operation::Change);
+    EvilOps::operator_impl(cx, EvilOperator::Change);
 }
 
 fn evil_find_till_char(cx: &mut Context) {
@@ -6943,4 +6974,3 @@ fn evil_goto_line(cx: &mut Context) {
         goto_last_line(cx);
     }
 }
-
