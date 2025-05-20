@@ -5966,7 +5966,7 @@ fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
             cx.editor.apply_motion(textobject);
 
             EvilOps::execute_operator(cx);
-        } else {
+        } else if EvilOps::is_pending_operator(cx) {
             EvilOps::stop_pending_and_collapse_to_anchor(cx);
         }
     });
