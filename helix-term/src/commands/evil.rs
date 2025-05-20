@@ -181,16 +181,11 @@ impl EvilCommands {
         Self::context().operator_will_exit
     }
 
-    pub fn set_operator(
-        cmd: Option<EvilOperator>,
-        register: Option<char>,
-        count: usize,
-        will_exit: bool,
-    ) {
+    pub fn set_operator(cmd: Option<EvilOperator>, register: Option<char>, count: usize) {
+        Self::context_mut().operator_will_exit = false;
         Self::context_mut().operator = cmd;
         Self::context_mut().operator_register = register;
         Self::context_mut().operator_count = count;
-        Self::context_mut().operator_will_exit = will_exit;
     }
 
     /// Collapse selections such that the selections cover one character per cursor only.
@@ -782,7 +777,7 @@ impl EvilCommands {
                     _ => {}
                 }
 
-                EvilOps::exec_operator(cx);
+                EvilOps::execute_operator(cx);
             })
         } else {
             log::warn!("The find_char base function did not set a key callback");
@@ -921,18 +916,19 @@ impl EvilOps {
         cx.editor.mode == Mode::Select && EvilCommands::operator().is_some()
     }
 
-    pub fn stop_any_pending() {
-        EvilCommands::set_operator(None, None, 0, false);
+    pub fn stop_pending() {
+        if EvilCommands::is_enabled() {
+            EvilCommands::set_operator(None, None, 0);
+        }
     }
 
-    pub fn will_stop_pending_and_exit_selection() {
-        if EvilCommands::operator().is_some() {
-            EvilCommands::set_operator(None, None, 0, true);
+    pub fn mark_pending_operator_cancelled() {
+        if EvilCommands::is_enabled() && EvilCommands::operator().is_some() {
+            EvilCommands::context_mut().operator_will_exit = true;
         }
     }
 
     fn exit_selection(cx: &mut Context, collapse_mode: CollapseMode) {
-
         EvilCommands::collapse_selections(cx, collapse_mode);
 
         if cx.editor.mode == Mode::Select {
@@ -940,13 +936,12 @@ impl EvilOps {
         }
     }
 
-    pub fn stop_pending_and_exit_selection(cx: &mut Context) {
-        if !EvilCommands::is_enabled() {
-            return;
+    pub fn stop_pending_and_collapse_to_anchor(cx: &mut Context) {
+        if EvilCommands::is_enabled() {
+            // Use ToAnchor produces a closer cursor position to Vim
+            Self::exit_selection(cx, CollapseMode::ToAnchor);
+            EvilCommands::set_operator(None, None, 0);
         }
-        // Use ToAnchor produces a closer cursor position to Vim
-        Self::exit_selection(cx, CollapseMode::ToAnchor);
-        EvilCommands::set_operator(None, None, 0, false);
     }
 
     fn delete_by_selection(cx: &mut Context, selection: &Selection) {
@@ -959,7 +954,7 @@ impl EvilOps {
         doc.apply(&transaction, view.id);
     }
 
-    pub fn exec_operator(cx: &mut Context) {
+    pub fn execute_operator(cx: &mut Context) {
         fn custom_delete_selection(cx: &mut Context, insert: bool) {
             let selection = {
                 let (view, doc) = current!(cx.editor);
@@ -982,7 +977,7 @@ impl EvilOps {
         // Assumption: operator is not pending except in Mode::Select
         if cx.editor.mode == Mode::Select {
             if EvilCommands::operator_will_exit() {
-                Self::stop_pending_and_exit_selection(cx);
+                Self::stop_pending_and_collapse_to_anchor(cx);
                 return;
             }
             if let Some(operator) = EvilCommands::operator() {
@@ -1000,7 +995,7 @@ impl EvilOps {
                         EvilCommands::yank_selection(cx, &selection, true);
                     }
                 }
-                Self::stop_pending_and_exit_selection(cx);
+                Self::stop_pending_and_collapse_to_anchor(cx);
             }
         }
     }
@@ -1029,7 +1024,7 @@ impl EvilOps {
                     EvilOperator::Yank => EvilCommands::yank(cx),
                 }
             } else {
-                EvilCommands::set_operator(Some(cmd), cx.register, cx.count(), false);
+                EvilCommands::set_operator(Some(cmd), cx.register, cx.count());
                 select_mode(cx);
             }
         } else {
@@ -1046,7 +1041,7 @@ impl EvilOps {
                     EvilCommands::yank_selection(cx, &selection, true);
                 }
             }
-            Self::stop_pending_and_exit_selection(cx);
+            Self::stop_pending_and_collapse_to_anchor(cx);
         }
     }
 }
