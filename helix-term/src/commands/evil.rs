@@ -976,11 +976,11 @@ impl EvilOps {
 
         // Assumption: operator is not pending except in Mode::Select
         if cx.editor.mode == Mode::Select {
-            if EvilCommands::operator_will_exit() {
-                Self::stop_pending_and_collapse_to_anchor(cx);
-                return;
-            }
             if let Some(operator) = EvilCommands::operator() {
+                if EvilCommands::operator_will_exit() {
+                    Self::stop_pending_and_collapse_to_anchor(cx);
+                    return;
+                }
                 match operator {
                     EvilOperator::Delete => custom_delete_selection(cx, false),
                     EvilOperator::Change => custom_delete_selection(cx, true),
