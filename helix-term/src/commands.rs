@@ -270,7 +270,7 @@ fn evil_post_command_execution(cx: &mut Context, cmd: &MappableCommand) {
                 // Ignore
             }
             _ => {
-                EvilOps::exec_operator(cx);
+                EvilOps::execute_operator(cx);
             }
         }
     }
@@ -3845,7 +3845,7 @@ fn open_above(cx: &mut Context) {
 }
 
 fn normal_mode(cx: &mut Context) {
-    EvilOps::stop_any_pending();
+    EvilOps::stop_pending();
     cx.editor.enter_normal_mode();
 }
 
@@ -3966,7 +3966,8 @@ pub fn exit_select_mode(cx: &mut Context) {
     if EvilCommands::is_enabled() {
         // In evil mode, selections are possible in the selection/visual mode only.
         EvilCommands::collapse_selections(cx, CollapseMode::ToHead);
-        EvilOps::stop_any_pending();
+
+        EvilOps::stop_pending();
     }
 
     if cx.editor.mode == Mode::Select {
@@ -5955,7 +5956,7 @@ fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
                             count,
                         ),
                         _ => {
-                            EvilOps::will_stop_pending_and_exit_selection();
+                            EvilOps::mark_pending_operator_cancelled();
                             range
                         }
                     }
@@ -5964,9 +5965,9 @@ fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
             };
             cx.editor.apply_motion(textobject);
 
-            EvilOps::exec_operator(cx);
+            EvilOps::execute_operator(cx);
         } else {
-            EvilOps::stop_pending_and_exit_selection(cx);
+            EvilOps::stop_pending_and_collapse_to_anchor(cx);
         }
     });
 
