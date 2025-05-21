@@ -269,6 +269,9 @@ fn evil_post_command_execution(cx: &mut Context, cmd: &MappableCommand) {
             | "evil_yank" => {
                 // Ignore
             }
+            "normal_mode" | "exit_select_mode" => {
+                EvilOps::stop_pending();
+            }
             _ => {
                 EvilOps::execute_operator(cx);
             }
@@ -3845,7 +3848,6 @@ fn open_above(cx: &mut Context) {
 }
 
 fn normal_mode(cx: &mut Context) {
-    EvilOps::stop_pending();
     cx.editor.enter_normal_mode();
 }
 
@@ -3966,8 +3968,6 @@ pub fn exit_select_mode(cx: &mut Context) {
     if EvilCommands::is_enabled() {
         // In evil mode, selections are possible in the selection/visual mode only.
         EvilCommands::collapse_selections(cx, CollapseMode::ToHead);
-
-        EvilOps::stop_pending();
     }
 
     if cx.editor.mode == Mode::Select {
