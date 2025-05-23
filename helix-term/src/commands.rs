@@ -269,9 +269,7 @@ fn evil_post_command_execution(cx: &mut Context, cmd: &MappableCommand) {
             | "evil_yank" => {
                 // Ignore
             }
-            | "visual_mode"
-            | "evil_characterwise_select_mode"
-            | "evil_linewise_select_mode" => {
+            "visual_mode" | "evil_characterwise_select_mode" | "evil_linewise_select_mode" => {
                 EvilOps::stop_pending();
             }
             _ => {
@@ -6847,7 +6845,7 @@ fn evil_next_long_word_end(cx: &mut Context) {
 }
 
 fn evil_delete(cx: &mut Context) {
-    EvilOps::operator_impl(cx, EvilOperator::Delete);
+    EvilOps::operator_impl(cx, EvilOperator::Delete, cx.register);
 }
 
 fn evil_delete_immediate(cx: &mut Context) {
@@ -6858,11 +6856,11 @@ fn evil_delete_immediate(cx: &mut Context) {
 }
 
 fn evil_yank(cx: &mut Context) {
-    EvilOps::operator_impl(cx, EvilOperator::Yank);
+    EvilOps::operator_impl(cx, EvilOperator::Yank, cx.register);
 }
 
 fn evil_change(cx: &mut Context) {
-    EvilOps::operator_impl(cx, EvilOperator::Change);
+    EvilOps::operator_impl(cx, EvilOperator::Change, cx.register);
 }
 
 fn evil_find_till_char(cx: &mut Context) {

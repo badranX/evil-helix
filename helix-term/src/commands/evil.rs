@@ -1002,7 +1002,7 @@ impl EvilOps {
         }
     }
 
-    pub fn operator_impl(cx: &mut Context, cmd: EvilOperator) {
+    pub fn operator_impl(cx: &mut Context, cmd: EvilOperator, register: Option<char>) {
         fn custom_delete_line(cx: &mut Context, count: usize, change: bool) {
             // Adjusting the original evil context count to use `get_full_line_based_selection`
             EvilCommands::context_mut().count = Some(count);
@@ -1026,7 +1026,7 @@ impl EvilOps {
                     EvilOperator::Yank => EvilCommands::yank(cx),
                 }
             } else {
-                EvilCommands::set_operator(Some(cmd), cx.register, cx.count());
+                EvilCommands::set_operator(Some(cmd), register, cx.count());
                 select_mode(cx);
             }
         } else {
