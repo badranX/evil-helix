@@ -912,8 +912,8 @@ pub fn evil_movement_paragraph_forward(
 pub struct EvilOps;
 
 impl EvilOps {
-    pub fn is_pending_operator(cx: &Context) -> bool {
-        cx.editor.mode == Mode::Select && EvilCommands::operator().is_some()
+    pub fn is_pending_operator() -> bool {
+        EvilCommands::operator().is_some()
     }
 
     pub fn stop_pending() {
@@ -997,6 +997,8 @@ impl EvilOps {
                 }
                 Self::stop_pending_and_collapse_to_anchor(cx);
             }
+        } else {
+            Self::stop_pending();
         }
     }
 
@@ -1016,7 +1018,7 @@ impl EvilOps {
 
         let count = EvilCommands::operator_count();
 
-        if !Self::is_pending_operator(cx) {
+        if !Self::is_pending_operator() {
             if cx.editor.mode == Mode::Select {
                 match cmd {
                     EvilOperator::Delete => EvilCommands::delete(cx, Operation::Delete),

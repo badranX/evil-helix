@@ -256,7 +256,7 @@ macro_rules! static_commands {
 }
 
 fn evil_post_command_execution(cx: &mut Context, cmd: &MappableCommand) {
-    if EvilOps::is_pending_operator(cx) {
+    if EvilOps::is_pending_operator() {
         match cmd.name() {
             "select_textobject_around"
             | "select_textobject_inner"
@@ -269,7 +269,9 @@ fn evil_post_command_execution(cx: &mut Context, cmd: &MappableCommand) {
             | "evil_yank" => {
                 // Ignore
             }
-            "normal_mode" | "exit_select_mode" => {
+            | "visual_mode"
+            | "evil_characterwise_select_mode"
+            | "evil_linewise_select_mode" => {
                 EvilOps::stop_pending();
             }
             _ => {
@@ -5966,7 +5968,7 @@ fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
             cx.editor.apply_motion(textobject);
 
             EvilOps::execute_operator(cx);
-        } else if EvilOps::is_pending_operator(cx) {
+        } else if EvilOps::is_pending_operator() {
             EvilOps::stop_pending_and_collapse_to_anchor(cx);
         }
     });
