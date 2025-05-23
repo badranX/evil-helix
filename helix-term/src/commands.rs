@@ -255,31 +255,6 @@ macro_rules! static_commands {
     }
 }
 
-fn evil_post_command_execution(cx: &mut Context, cmd: &MappableCommand) {
-    if EvilOps::is_pending_operator() {
-        match cmd.name() {
-            "select_textobject_around"
-            | "select_textobject_inner"
-            | "evil_find_till_char"
-            | "evil_find_next_char"
-            | "evil_till_prev_char"
-            | "evil_prev_char"
-            | "evil_delete"
-            | "evil_change"
-            | "evil_yank"
-            | "evil_yank_to_clipboard" => {
-                // Ignore
-            }
-            "visual_mode" | "evil_characterwise_select_mode" | "evil_linewise_select_mode" => {
-                EvilOps::stop_pending();
-            }
-            _ => {
-                EvilOps::execute_operator(cx);
-            }
-        }
-    }
-}
-
 impl MappableCommand {
     pub fn execute(&self, cx: &mut Context) {
         if evil_is_select_mode_linewise(cx) {
@@ -341,7 +316,7 @@ impl MappableCommand {
         if evil_is_select_mode_linewise(cx) {
             evil_transform_selection_linewise(cx)
         }
-        evil_post_command_execution(cx, self);
+        EvilOps::post_command_execution(cx, self);
     }
 
     pub fn name(&self) -> &str {

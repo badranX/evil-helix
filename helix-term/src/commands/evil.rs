@@ -22,7 +22,8 @@ use helix_view::input::KeyEvent;
 use once_cell::sync::Lazy;
 
 use crate::commands::{
-    enter_insert_mode, exit_select_mode, insert_mode, select_mode, Context, Extend, Operation,
+    enter_insert_mode, exit_select_mode, insert_mode, select_mode, Context, Extend,
+    MappableCommand, Operation,
 };
 
 use super::OnKeyCallbackKind;
@@ -182,10 +183,11 @@ impl EvilCommands {
     }
 
     pub fn set_operator(cmd: Option<EvilOperator>, register: Option<char>, count: usize) {
-        Self::context_mut().operator_will_exit = false;
-        Self::context_mut().operator = cmd;
-        Self::context_mut().operator_register = register;
-        Self::context_mut().operator_count = count;
+        let mut context_mut = EvilCommands::context_mut();
+        context_mut.operator_will_exit = false;
+        context_mut.operator = cmd;
+        context_mut.operator_register = register;
+        context_mut.operator_count = count;
     }
 
     /// Collapse selections such that the selections cover one character per cursor only.
@@ -912,6 +914,37 @@ pub fn evil_movement_paragraph_forward(
 pub struct EvilOps;
 
 impl EvilOps {
+    pub fn post_command_execution(cx: &mut Context, cmd: &MappableCommand) {
+        if !EvilCommands::is_enabled() {
+            return;
+        }
+
+        if !Self::is_pending_operator() {
+            return;
+        }
+
+        match cmd.name() {
+            "select_textobject_around"
+            | "select_textobject_inner"
+            | "evil_find_till_char"
+            | "evil_find_next_char"
+            | "evil_till_prev_char"
+            | "evil_prev_char"
+            | "evil_delete"
+            | "evil_change"
+            | "evil_yank"
+            | "evil_yank_to_clipboard" => {
+                // Ignore
+            }
+            "visual_mode" | "evil_characterwise_select_mode" | "evil_linewise_select_mode" => {
+                EvilOps::stop_pending();
+            }
+            _ => {
+                EvilOps::execute_operator(cx);
+            }
+        }
+    }
+
     pub fn is_pending_operator() -> bool {
         EvilCommands::operator().is_some()
     }
@@ -975,30 +1008,31 @@ impl EvilOps {
         }
 
         // Assumption: operator is not pending except in Mode::Select
-        if cx.editor.mode == Mode::Select {
-            if let Some(operator) = EvilCommands::operator() {
-                if EvilCommands::operator_will_exit() {
-                    Self::stop_pending_and_collapse_to_anchor(cx);
-                    return;
-                }
-                match operator {
-                    EvilOperator::Delete => custom_delete_selection(cx, false),
-                    EvilOperator::Change => custom_delete_selection(cx, true),
-                    EvilOperator::Yank => {
-                        let selection = {
-                            let (view, doc) = current!(cx.editor);
-                            doc.selection(view.id).clone()
-                        };
-
-                        // yank to operator register
-                        cx.register = EvilCommands::operator_register();
-                        EvilCommands::yank_selection(cx, &selection, true);
-                    }
-                }
-                Self::stop_pending_and_collapse_to_anchor(cx);
-            }
-        } else {
+        if cx.editor.mode != Mode::Select {
             Self::stop_pending();
+            return;
+        }
+
+        if let Some(operator) = EvilCommands::operator() {
+            if EvilCommands::operator_will_exit() {
+                Self::stop_pending_and_collapse_to_anchor(cx);
+                return;
+            }
+            match operator {
+                EvilOperator::Delete => custom_delete_selection(cx, false),
+                EvilOperator::Change => custom_delete_selection(cx, true),
+                EvilOperator::Yank => {
+                    let selection = {
+                        let (view, doc) = current!(cx.editor);
+                        doc.selection(view.id).clone()
+                    };
+
+                    // yank to operator register
+                    cx.register = EvilCommands::operator_register();
+                    EvilCommands::yank_selection(cx, &selection, true);
+                }
+            }
+            Self::stop_pending_and_collapse_to_anchor(cx);
         }
     }
 
