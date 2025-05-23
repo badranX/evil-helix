@@ -266,7 +266,8 @@ fn evil_post_command_execution(cx: &mut Context, cmd: &MappableCommand) {
             | "evil_prev_char"
             | "evil_delete"
             | "evil_change"
-            | "evil_yank" => {
+            | "evil_yank"
+            | "evil_yank_to_clipboard" => {
                 // Ignore
             }
             "visual_mode" | "evil_characterwise_select_mode" | "evil_linewise_select_mode" => {
@@ -547,6 +548,7 @@ impl MappableCommand {
         commit_undo_checkpoint, "Commit changes to new checkpoint",
         yank, "Yank selection",
         yank_to_clipboard, "Yank selections to clipboard",
+        evil_yank_to_clipboard, "Yank to clipboard (evil)",
         yank_to_primary_clipboard, "Yank selections to primary clipboard",
         yank_joined, "Join and yank selections",
         yank_joined_to_clipboard, "Join and yank selections to clipboard",
@@ -4559,6 +4561,10 @@ fn yank(cx: &mut Context) {
             .unwrap_or(cx.editor.config().default_yank_register),
     );
     exit_select_mode(cx);
+}
+
+fn evil_yank_to_clipboard(cx: &mut Context) {
+    EvilOps::operator_impl(cx, EvilOperator::Yank, Some('+'));
 }
 
 fn yank_to_clipboard(cx: &mut Context) {

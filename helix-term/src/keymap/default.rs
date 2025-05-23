@@ -677,7 +677,7 @@ pub fn default_evil() -> HashMap<Mode, KeyTrie> {
                     "C-v" | "v" => vsplit_new,
                 },
             },
-            "y" => yank_to_clipboard,
+            "y" => evil_yank_to_clipboard,
             "Y" => yank_main_selection_to_clipboard,
             "p" => paste_clipboard_after,
             "P" => paste_clipboard_before,
