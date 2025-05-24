@@ -5936,20 +5936,14 @@ fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
                             ch,
                             count,
                         ),
-                        _ => {
-                            EvilOps::mark_pending_operator_cancelled();
-                            range
-                        }
+                        _ => range,
                     }
                 });
                 doc.set_selection(view.id, selection);
             };
             cx.editor.apply_motion(textobject);
-
-            EvilOps::execute_operator(cx);
-        } else if EvilOps::is_pending_operator() {
-            EvilOps::stop_pending_and_collapse_to_anchor(cx);
         }
+        EvilOps::execute_operator(cx);
     });
 
     let title = match objtype {
@@ -6956,3 +6950,4 @@ fn evil_goto_line(cx: &mut Context) {
         goto_last_line(cx);
     }
 }
+
