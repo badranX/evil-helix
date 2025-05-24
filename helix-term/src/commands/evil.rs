@@ -1083,7 +1083,11 @@ impl EvilOps {
                 match cmd {
                     EvilOperator::Delete => EvilCommands::delete(cx, Operation::Delete),
                     EvilOperator::Change => EvilCommands::delete(cx, Operation::Change),
-                    EvilOperator::Yank => EvilCommands::yank(cx),
+                    EvilOperator::Yank => {
+                        // TODO: refactor EvilCommands to allow custom register
+                        cx.register = EvilCommands::operator_register();
+                        EvilCommands::yank(cx);
+                    }
                 }
             } else {
                 let (view, doc) = current!(cx.editor);
