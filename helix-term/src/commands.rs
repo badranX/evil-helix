@@ -5943,7 +5943,7 @@ fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
             };
             cx.editor.apply_motion(textobject);
         }
-        EvilOps::execute_operator(cx);
+        EvilOps::attempt_operator_execution(cx);
     });
 
     let title = match objtype {
