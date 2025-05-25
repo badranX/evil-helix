@@ -528,11 +528,11 @@ impl EvilCommands {
         let inversed = range.0 > range.1;
 
         // The end points to the next char, not to the last char which would be selected
-        if end.saturating_sub(start) >= 2 && text.char(end - 1) == '\n' {
+        if end.saturating_sub(start) >= 1 && text.char(end - 1) == '\n' {
             end -= 1;
 
             // The line might end with CR & LF; in that case, strip CR as well
-            if end.saturating_sub(start) >= 2 && text.char(end - 1) == '\r' {
+            if end.saturating_sub(start) >= 1 && text.char(end - 1) == '\r' {
                 end -= 1;
             }
         }
