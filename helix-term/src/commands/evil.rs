@@ -3,19 +3,16 @@ use std::{
     sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use helix_core::movement::move_prev_word_start;
+use helix_core::graphemes::prev_grapheme_boundary;
+use helix_core::line_ending::{line_end_char_index, rope_is_line_ending};
 use helix_core::movement::{is_word_boundary, Direction};
 use helix_core::movement::{
     move_horizontally, word_move, Movement,
     WordMotionTarget::{EvilNextLongWordStart, EvilNextWordStart},
 };
+use helix_core::movement::{move_next_word_end, move_prev_word_start};
 use helix_core::{doc_formatter::TextFormat, text_annotations::TextAnnotations, RopeSlice};
-use helix_core::{movement::move_next_word_end, Rope};
-use helix_core::{Range, Selection, Transaction};
-use helix_core::{
-    line_ending::rope_is_line_ending,
-    graphemes::prev_grapheme_boundary,
-};
+use helix_core::{Range, Rope, Selection, Transaction};
 use helix_view::document::Mode;
 use helix_view::editor::EvilSelectMode;
 use helix_view::input::KeyEvent;
@@ -33,6 +30,12 @@ pub enum EvilOperator {
     Yank,
     Delete,
     Change,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum EvilOpsCase {
+    CompleteLines,
+    NextWord,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -529,6 +532,20 @@ impl EvilCommands {
         };
     }
 
+    fn strip_last_grapheme_within_line(text: RopeSlice, range: Range) -> Range {
+        let line = text.char_to_line(range.anchor);
+        let line_start = text.line_to_char(line);
+        let line_end = line_end_char_index(&text, line).max(line_start);
+
+        let new_head = if line_end > range.head {
+            prev_grapheme_boundary(text, range.head).max(line_start)
+        } else {
+            line_end
+        };
+
+        Range::new(range.anchor, new_head)
+    }
+
     fn yank_selection(
         cx: &mut Context,
         selection: &Selection,
@@ -792,7 +809,7 @@ impl EvilCommands {
                     _ => {}
                 }
 
-                EvilOps::attempt_operator_execution(cx);
+                EvilOps::attempt_operator_execution(cx, None);
             })
         } else {
             log::warn!("The find_char base function did not set a key callback");
@@ -953,8 +970,17 @@ impl EvilOps {
             "visual_mode" | "evil_characterwise_select_mode" | "evil_linewise_select_mode" => {
                 EvilOps::stop_pending();
             }
+            "evil_next_word_start" | "evil_next_long_word_start" => {
+                EvilOps::attempt_operator_execution(cx, Some(EvilOpsCase::NextWord))
+            }
+            "extend_anchored_line_up"
+            | "extend_anchored_line_down"
+            | "extend_anchored_visual_line_down"
+            | "extend_anchored_visual_line_up" => {
+                EvilOps::attempt_operator_execution(cx, Some(EvilOpsCase::CompleteLines))
+            }
             _ => {
-                EvilOps::attempt_operator_execution(cx);
+                EvilOps::attempt_operator_execution(cx, None);
             }
         }
     }
@@ -1012,13 +1038,25 @@ impl EvilOps {
         cx: &mut Context,
         cmd: EvilOperator,
         register: Option<char>,
+        special_case: Option<EvilOpsCase>,
     ) {
-        let selection = {
-            let (view, doc) = current!(cx.editor);
-            doc.selection(view.id).clone()
-        };
-
-        Self::run_operator(cx, cmd, register, &selection, &selection);
+        let (view, doc) = current!(cx.editor);
+        let selection = doc.selection(view.id).clone();
+        match special_case {
+            Some(EvilOpsCase::NextWord) => {
+                let text = doc.text().slice(..);
+                let delete_selection = selection
+                    .clone()
+                    .transform(|range| EvilCommands::strip_last_grapheme_within_line(text, range));
+                Self::run_operator(cx, cmd, register, &selection, &delete_selection);
+            }
+            Some(EvilOpsCase::CompleteLines) => {
+                Self::run_operator_lines(cx, cmd, register);
+            }
+            None => {
+                Self::run_operator(cx, cmd, register, &selection, &selection);
+            }
+        }
     }
 
     fn run_operator_lines(cx: &mut Context, cmd: EvilOperator, register: Option<char>) {
@@ -1026,8 +1064,8 @@ impl EvilOps {
         if cmd != EvilOperator::Change {
             Self::run_operator(cx, cmd, register, &selection, &selection);
         } else {
-            let sel_to_delete = EvilCommands::get_full_line_based_selection(cx, false);
-            Self::run_operator(cx, cmd, register, &selection, &sel_to_delete);
+            let delete_selection = EvilCommands::get_full_line_based_selection(cx, false);
+            Self::run_operator(cx, cmd, register, &selection, &delete_selection);
         }
     }
 
@@ -1045,14 +1083,14 @@ impl EvilOps {
         match &EvilCommands::context().operator_selection {
             Some(prev_selection) => {
                 let (view, doc) = current!(cx.editor);
-                let current_selection = doc.selection(view.id).clone();
-                is_invalid(&current_selection, prev_selection)
+                let current_selection = doc.selection(view.id);
+                is_invalid(current_selection, prev_selection)
             }
             None => true,
         }
     }
 
-    pub fn attempt_operator_execution(cx: &mut Context) {
+    pub fn attempt_operator_execution(cx: &mut Context, special_case: Option<EvilOpsCase>) {
         if !EvilCommands::is_enabled() {
             return;
         }
@@ -1074,13 +1112,12 @@ impl EvilOps {
         }
 
         let register = EvilCommands::context().operator_register;
-        Self::run_operator_for_current_selection(cx, operator, register);
+        Self::run_operator_for_current_selection(cx, operator, register, special_case);
     }
 
     pub fn operator_impl(cx: &mut Context, cmd: EvilOperator, register: Option<char>) {
         // Case example: dd, yy, cc
         if Self::is_pending_operator() {
-            //let count = EvilCommands::operator_count();
             let register = EvilCommands::context().operator_register;
             Self::run_operator_lines(cx, cmd, register);
             return;
@@ -1089,7 +1126,7 @@ impl EvilOps {
         // Case example: d, y, c
         match cx.editor.mode {
             Mode::Select => {
-                Self::run_operator_for_current_selection(cx, cmd, register);
+                Self::run_operator_for_current_selection(cx, cmd, register, None);
             }
             _ => {
                 let (view, doc) = current!(cx.editor);
