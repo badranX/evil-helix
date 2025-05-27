@@ -19,8 +19,8 @@ use helix_view::input::KeyEvent;
 use once_cell::sync::Lazy;
 
 use crate::commands::{
-    enter_insert_mode, exit_select_mode, insert_mode, select_mode, Context, Extend,
-    MappableCommand, Operation,
+    enter_insert_mode, evil_is_select_mode_linewise, exit_select_mode, insert_mode, select_mode,
+    Context, Extend, MappableCommand, Operation,
 };
 
 use super::OnKeyCallbackKind;
@@ -1126,7 +1126,16 @@ impl EvilOps {
         // Case example: d, y, c
         match cx.editor.mode {
             Mode::Select => {
-                Self::run_operator_for_current_selection(cx, cmd, register, None);
+                if evil_is_select_mode_linewise(cx) {
+                    Self::run_operator_for_current_selection(
+                        cx,
+                        cmd,
+                        register,
+                        Some(EvilOpsCase::CompleteLines),
+                    );
+                } else {
+                    Self::run_operator_for_current_selection(cx, cmd, register, None);
+                }
             }
             _ => {
                 let (view, doc) = current!(cx.editor);
