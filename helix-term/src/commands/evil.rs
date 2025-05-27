@@ -976,7 +976,10 @@ impl EvilOps {
             "extend_anchored_line_up"
             | "extend_anchored_line_down"
             | "extend_anchored_visual_line_down"
-            | "extend_anchored_visual_line_up" => {
+            | "extend_anchored_visual_line_up"
+            | "goto_line"
+            | "evil_goto_line"
+            | "goto_file_start" => {
                 EvilOps::attempt_operator_execution(cx, Some(EvilOpsCase::CompleteLines))
             }
             _ => {
