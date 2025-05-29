@@ -32,9 +32,15 @@ pub enum EvilOperator {
     Change,
 }
 
+/// Represents special cases where the target text of Evil operators
+/// cannot be determined by a simple motion alone.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum EvilOpsCase {
+    /// Applies the operator to complete lines, as in `dd`, `yy`, or Visual Line mode.
     CompleteLines,
+
+    /// Applies the operator to the motion, excluding the anchor,
+    /// and limiting the operator effect to the current line (e.g. `dw`, `dW`)
     NextWord,
 }
 
@@ -941,6 +947,11 @@ pub fn evil_movement_paragraph_forward(
     Range::new(anchor, head)
 }
 
+/// Provides implementations for Evil text operators, such as Delete, Yank, and Change.
+///
+/// *Operators* are commands that act on a range of text determined by a following motion or text object.
+/// We use the term *pending* to refer to the state where the operator is waiting for a second key to specify the target range.
+/// Examples include commands like `dj`, `dw`, or `dd`.
 pub struct EvilOps;
 
 impl EvilOps {
